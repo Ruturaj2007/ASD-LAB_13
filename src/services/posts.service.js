@@ -1,5 +1,10 @@
 const prisma = require('../db');
 
+const postInclude = {
+  author: { select: { id: true, username: true, fullname: true } },
+  _count: { select: { likes: true } },
+};
+
 function createPost(data) {
   return prisma.post.create({ data });
 }
@@ -25,10 +30,16 @@ async function listPosts({ page, limit, sortBy, order, location, search, from, t
     }
   }
 
+  const orderBy =
+    sortBy === 'likes'
+      ? [{ likes: { _count: order } }, { createdAt: 'desc' }]
+      : { [sortBy]: order };
+
   const [data, total] = await prisma.$transaction([
     prisma.post.findMany({
       where,
-      orderBy: { [sortBy]: order },
+      include: postInclude,
+      orderBy,
       skip: (page - 1) * limit,
       take: limit,
     }),
@@ -39,7 +50,7 @@ async function listPosts({ page, limit, sortBy, order, location, search, from, t
 }
 
 function getPostById(id) {
-  return prisma.post.findUnique({ where: { id } });
+  return prisma.post.findUnique({ where: { id }, include: postInclude });
 }
 
 function updatePost(id, data) {

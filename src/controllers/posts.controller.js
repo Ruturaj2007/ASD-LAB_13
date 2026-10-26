@@ -1,15 +1,30 @@
 const postsService = require('../services/posts.service');
+const usersService = require('../services/users.service');
 
 async function create(req, res) {
-  const { imageUrl, caption, location } = req.body || {};
+  const { imageUrl, caption, location, authorId } = req.body || {};
+  const authorIdNumber = Number(authorId);
 
-  if (typeof imageUrl !== 'string' || imageUrl.trim() === '') {
-    return res.status(400).json({ error: 'imageUrl is required' });
+  if (
+    typeof imageUrl !== 'string' ||
+    imageUrl.trim() === '' ||
+    !Number.isInteger(authorIdNumber)
+  ) {
+    return res
+      .status(400)
+      .json({ error: 'imageUrl and authorId are required' });
   }
 
   try {
+    const author = await usersService.getUserById(authorIdNumber);
+
+    if (!author) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
     const post = await postsService.createPost({
       imageUrl,
+      authorId: authorIdNumber,
       ...(caption !== undefined ? { caption } : {}),
       ...(location !== undefined ? { location } : {}),
     });
