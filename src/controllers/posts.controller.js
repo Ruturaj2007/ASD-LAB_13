@@ -22,10 +22,67 @@ async function create(req, res) {
 }
 
 async function list(req, res) {
-  try {
-    const posts = await postsService.listPosts();
+  const page = req.query.page === undefined ? 1 : Number(req.query.page);
+  const rawLimit =
+    req.query.limit === undefined ? 10 : Number(req.query.limit);
 
-    return res.status(200).json(posts);
+  if (
+    !Number.isInteger(page) ||
+    page < 1 ||
+    !Number.isInteger(rawLimit) ||
+    rawLimit < 1
+  ) {
+    return res
+      .status(400)
+      .json({ error: 'page and limit must be positive integers' });
+  }
+
+  const limit = Math.min(rawLimit, 50);
+
+  const sortBy = req.query.sortBy || 'createdAt';
+  if (!['createdAt', 'updatedAt'].includes(sortBy)) {
+    return res
+      .status(400)
+      .json({ error: 'sortBy must be one of: createdAt, updatedAt' });
+  }
+
+  const order = req.query.order || 'desc';
+  if (order !== 'asc' && order !== 'desc') {
+    return res.status(400).json({ error: 'order must be asc or desc' });
+  }
+
+  let from;
+  if (req.query.from !== undefined) {
+    from = new Date(req.query.from);
+    if (Number.isNaN(from.getTime())) {
+      return res.status(400).json({ error: 'from and to must be valid dates' });
+    }
+  }
+
+  let to;
+  if (req.query.to !== undefined) {
+    to = new Date(req.query.to);
+    if (Number.isNaN(to.getTime())) {
+      return res.status(400).json({ error: 'from and to must be valid dates' });
+    }
+  }
+
+  try {
+    const { data, total } = await postsService.listPosts({
+      page,
+      limit,
+      sortBy,
+      order,
+      location: req.query.location,
+      search: req.query.search,
+      from,
+      to,
+    });
+
+    return res.status(200).json({
+      data,
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    });
   } catch (error) {
     console.error('Failed to list posts:', error);
     return res.status(500).json({ error: 'Internal server error' });
