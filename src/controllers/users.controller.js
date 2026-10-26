@@ -199,4 +199,39 @@ async function listPosts(req, res) {
   }
 }
 
-module.exports = { create, list, getOne, update, remove, listPosts };
+async function listLikedPosts(req, res) {
+  const id = Number.parseInt(req.params.id, 10);
+
+  if (!Number.isInteger(id)) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+
+  const { page, limit, error: pageError } = parsePagination(req.query);
+
+  if (pageError) {
+    return res.status(400).json({ error: pageError });
+  }
+
+  try {
+    const user = await usersService.getUserById(id);
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const { data, total } = await usersService.getLikedPosts(id, {
+      page,
+      limit,
+    });
+
+    return res.status(200).json({
+      data,
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    });
+  } catch (error) {
+    console.error('Failed to list liked posts:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+module.exports = { create, list, getOne, update, remove, listPosts, listLikedPosts };
