@@ -1,4 +1,5 @@
 const usersService = require('../services/users.service');
+const { parsePagination } = require('../utils/pagination');
 
 async function create(req, res) {
   const { username, email, fullname, bio } = req.body || {};
@@ -38,22 +39,11 @@ async function create(req, res) {
 }
 
 async function list(req, res) {
-  const page = req.query.page === undefined ? 1 : Number(req.query.page);
-  const rawLimit =
-    req.query.limit === undefined ? 10 : Number(req.query.limit);
+  const { page, limit, error: pageError } = parsePagination(req.query);
 
-  if (
-    !Number.isInteger(page) ||
-    page < 1 ||
-    !Number.isInteger(rawLimit) ||
-    rawLimit < 1
-  ) {
-    return res
-      .status(400)
-      .json({ error: 'page and limit must be positive integers' });
+  if (pageError) {
+    return res.status(400).json({ error: pageError });
   }
-
-  const limit = Math.min(rawLimit, 50);
 
   const sortBy = req.query.sortBy || 'createdAt';
   if (!['createdAt', 'username', 'fullname'].includes(sortBy)) {
@@ -75,6 +65,14 @@ async function list(req, res) {
     isPrivate = req.query.isPrivate === 'true';
   }
 
+  let hasPosts;
+  if (req.query.hasPosts !== undefined) {
+    if (req.query.hasPosts !== 'true' && req.query.hasPosts !== 'false') {
+      return res.status(400).json({ error: 'hasPosts must be true or false' });
+    }
+    hasPosts = req.query.hasPosts === 'true';
+  }
+
   try {
     const { data, total } = await usersService.listUsers({
       page,
@@ -82,6 +80,7 @@ async function list(req, res) {
       sortBy,
       order,
       isPrivate,
+      hasPosts,
       search: req.query.search,
     });
 
@@ -165,4 +164,39 @@ async function remove(req, res) {
   }
 }
 
-module.exports = { create, list, getOne, update, remove };
+async function listPosts(req, res) {
+  const id = Number.parseInt(req.params.id, 10);
+
+  if (!Number.isInteger(id)) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+
+  const { page, limit, error: pageError } = parsePagination(req.query);
+
+  if (pageError) {
+    return res.status(400).json({ error: pageError });
+  }
+
+  try {
+    const user = await usersService.getUserById(id);
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const { data, total } = await usersService.getUserPosts(id, {
+      page,
+      limit,
+    });
+
+    return res.status(200).json({
+      data,
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    });
+  } catch (error) {
+    console.error('Failed to list posts of user:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+module.exports = { create, list, getOne, update, remove, listPosts };

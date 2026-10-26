@@ -4,11 +4,15 @@ function createUser(data) {
   return prisma.user.create({ data });
 }
 
-async function listUsers({ page, limit, sortBy, order, isPrivate, search }) {
+async function listUsers({ page, limit, sortBy, order, isPrivate, hasPosts, search }) {
   const where = {};
 
   if (isPrivate !== undefined) {
     where.isPrivate = isPrivate;
+  }
+
+  if (hasPosts !== undefined) {
+    where.posts = hasPosts ? { some: {} } : { none: {} };
   }
 
   if (search) {
@@ -32,7 +36,10 @@ async function listUsers({ page, limit, sortBy, order, isPrivate, search }) {
 }
 
 function getUserById(id) {
-  return prisma.user.findUnique({ where: { id } });
+  return prisma.user.findUnique({
+    where: { id },
+    include: { _count: { select: { posts: true, likes: true } } },
+  });
 }
 
 function updateUser(id, data) {
@@ -43,4 +50,28 @@ function deleteUser(id) {
   return prisma.user.delete({ where: { id } });
 }
 
-module.exports = { createUser, listUsers, getUserById, updateUser, deleteUser };
+async function getUserPosts(userId, { page, limit }) {
+  const where = { authorId: userId };
+
+  const [data, total] = await prisma.$transaction([
+    prisma.post.findMany({
+      where,
+      include: { _count: { select: { likes: true } } },
+      orderBy: { createdAt: 'desc' },
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
+    prisma.post.count({ where }),
+  ]);
+
+  return { data, total };
+}
+
+module.exports = {
+  createUser,
+  listUsers,
+  getUserById,
+  updateUser,
+  deleteUser,
+  getUserPosts,
+};

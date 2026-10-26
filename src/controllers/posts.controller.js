@@ -1,5 +1,6 @@
 const postsService = require('../services/posts.service');
 const usersService = require('../services/users.service');
+const { parsePagination } = require('../utils/pagination');
 
 async function create(req, res) {
   const { imageUrl, caption, location, authorId } = req.body || {};
@@ -37,22 +38,11 @@ async function create(req, res) {
 }
 
 async function list(req, res) {
-  const page = req.query.page === undefined ? 1 : Number(req.query.page);
-  const rawLimit =
-    req.query.limit === undefined ? 10 : Number(req.query.limit);
+  const { page, limit, error: pageError } = parsePagination(req.query);
 
-  if (
-    !Number.isInteger(page) ||
-    page < 1 ||
-    !Number.isInteger(rawLimit) ||
-    rawLimit < 1
-  ) {
-    return res
-      .status(400)
-      .json({ error: 'page and limit must be positive integers' });
+  if (pageError) {
+    return res.status(400).json({ error: pageError });
   }
-
-  const limit = Math.min(rawLimit, 50);
 
   const sortBy = req.query.sortBy || 'createdAt';
   if (!['createdAt', 'updatedAt', 'likes'].includes(sortBy)) {
@@ -174,4 +164,27 @@ async function remove(req, res) {
   }
 }
 
-module.exports = { create, list, getOne, update, remove };
+async function listLikes(req, res) {
+  const id = Number.parseInt(req.params.id, 10);
+
+  if (!Number.isInteger(id)) {
+    return res.status(404).json({ error: 'Post not found' });
+  }
+
+  try {
+    const post = await postsService.getPostById(id);
+
+    if (!post) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    const likers = await postsService.listPostLikers(id);
+
+    return res.status(200).json(likers);
+  } catch (error) {
+    console.error('Failed to list post likes:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+module.exports = { create, list, getOne, update, remove, listLikes };

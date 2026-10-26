@@ -61,4 +61,21 @@ function deletePost(id) {
   return prisma.post.delete({ where: { id } });
 }
 
-module.exports = { createPost, listPosts, getPostById, updatePost, deletePost };
+async function listPostLikers(postId) {
+  const rows = await prisma.like.findMany({
+    where: { postId },
+    orderBy: { user: { username: 'asc' } },
+    select: { user: { select: { id: true, username: true, fullname: true } } },
+  });
+
+  return rows.map((row) => row.user);
+}
+
+module.exports = {
+  createPost,
+  listPosts,
+  getPostById,
+  updatePost,
+  deletePost,
+  listPostLikers,
+};
