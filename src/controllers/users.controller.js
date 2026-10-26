@@ -38,10 +38,57 @@ async function create(req, res) {
 }
 
 async function list(req, res) {
-  try {
-    const users = await usersService.listUsers();
+  const page = req.query.page === undefined ? 1 : Number(req.query.page);
+  const rawLimit =
+    req.query.limit === undefined ? 10 : Number(req.query.limit);
 
-    return res.status(200).json(users);
+  if (
+    !Number.isInteger(page) ||
+    page < 1 ||
+    !Number.isInteger(rawLimit) ||
+    rawLimit < 1
+  ) {
+    return res
+      .status(400)
+      .json({ error: 'page and limit must be positive integers' });
+  }
+
+  const limit = Math.min(rawLimit, 50);
+
+  const sortBy = req.query.sortBy || 'createdAt';
+  if (!['createdAt', 'username', 'fullname'].includes(sortBy)) {
+    return res
+      .status(400)
+      .json({ error: 'sortBy must be one of: createdAt, username, fullname' });
+  }
+
+  const order = req.query.order || 'desc';
+  if (order !== 'asc' && order !== 'desc') {
+    return res.status(400).json({ error: 'order must be asc or desc' });
+  }
+
+  let isPrivate;
+  if (req.query.isPrivate !== undefined) {
+    if (req.query.isPrivate !== 'true' && req.query.isPrivate !== 'false') {
+      return res.status(400).json({ error: 'isPrivate must be true or false' });
+    }
+    isPrivate = req.query.isPrivate === 'true';
+  }
+
+  try {
+    const { data, total } = await usersService.listUsers({
+      page,
+      limit,
+      sortBy,
+      order,
+      isPrivate,
+      search: req.query.search,
+    });
+
+    return res.status(200).json({
+      data,
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    });
   } catch (error) {
     console.error('Failed to list users:', error);
     return res.status(500).json({ error: 'Internal server error' });
