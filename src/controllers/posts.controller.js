@@ -55,10 +55,10 @@ async function list(req, res) {
   const limit = Math.min(rawLimit, 50);
 
   const sortBy = req.query.sortBy || 'createdAt';
-  if (!['createdAt', 'updatedAt'].includes(sortBy)) {
+  if (!['createdAt', 'updatedAt', 'likes'].includes(sortBy)) {
     return res
       .status(400)
-      .json({ error: 'sortBy must be one of: createdAt, updatedAt' });
+      .json({ error: 'sortBy must be one of: createdAt, updatedAt, likes' });
   }
 
   const order = req.query.order || 'desc';
